@@ -1,9 +1,7 @@
 /* Récepteur 433 MHz */
 #include <VirtualWire.h>
 
-// Tableau qui va contenir le message reçu (de taille maximum VW_MAX_MESSAGE_LEN)
-uint8_t buf[VW_MAX_MESSAGE_LEN];
-uint8_t buflen = VW_MAX_MESSAGE_LEN; // Taille maximum de notre tableau
+
  
 void setup()
 {
@@ -15,6 +13,9 @@ void setup()
  
 void loop()
 {
+  // Tableau qui va contenir le message reçu (de taille maximum VW_MAX_MESSAGE_LEN)
+uint8_t buf[VW_MAX_MESSAGE_LEN];
+uint8_t buflen = VW_MAX_MESSAGE_LEN; // Taille maximum de notre tableau
    if (vw_have_message) // Si un message est reçu
    {
       if (vw_get_message(buf, &buflen))
