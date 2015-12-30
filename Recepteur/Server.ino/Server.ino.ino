@@ -1,3 +1,6 @@
+#include <Regexp.h>
+
+
 /* Récepteur 433 MHz */
 #include <VirtualWire.h>
 
@@ -22,6 +25,7 @@ uint8_t buflen = VW_MAX_MESSAGE_LEN; // Taille maximum de notre tableau
       {
          int i;
          for (i = 0; i < buflen; i++)
+
            Serial.print((char) buf[i]);
          Serial.println("");
       }
