@@ -23,15 +23,13 @@
 
 */
 
-// --- Fonctionnalités utilisées ---
 
-// -------- Circuit à réaliser ---------
-
-// --- Déclaration des constantes ---
 
 // --- Inclusion des librairies ---
 
 #include "DHT.h"
+#include <avr/sleep.h>
+#include <avr/wdt.h>
 #include <VirtualWire.h>
 
 // --- Déclaration des constantes utiles ---
@@ -39,20 +37,39 @@
 
 #define DHTPIN 2     // what pin we're connected to
 #define DHTTYPE DHT22   // DHT 22  (AM2302)
+#define DHTPIN_POWER 5 //alimentation du capteur DHT22
 
-
-// --- Déclaration des variables globales ---
 
 
 // --- Déclaration des objets utiles pour les fonctionnalités utilisées ---
 DHT dht(DHTPIN, DHTTYPE);
 
 
-// ////////////////////////// 2. FONCTION SETUP = Code d'initialisation //////////////////////////
-// La fonction setup() est exécutée en premier et 1 seule fois, au démarrage du programme
+ISR (WDT_vect)
+{
+  wdt_disable(); //désactive le watchdog
+}
+
+
+void mywatchdogenable()
+{
+  MCUSR = 0;
+  WDTCSR = _BV (WDCE) | _BV (WDE);
+  WDTCSR = _BV (WDIE) | _BV (WDP3) | _BV (WDP0); //délai de 8 secondes
+  wdt_reset();
+  ADCSRA = 0; //désactive ADC
+  set_sleep_mode (SLEEP_MODE_PWR_DOWN);
+  sleep_enable();
+  MCUCR = _BV (BODS) | _BV (BODSE);
+  MCUCR = _BV (BODS);
+  sleep_cpu();
+  sleep_disable();
+}
+
 
 void setup()   { // debut de la fonction setup()
 Serial.begin(9600); 
+pinMode(DHTPIN_POWER, OUTPUT);
 
 dht.begin();
 
@@ -71,92 +88,62 @@ vw_set_tx_pin(12);
 //Initialisation
 Serial.println("Ready");
 
-
-
-
-} // fin de la fonction setup()
-// ********************************************************************************
-
-float BoucleLecture = 10;
-
-////////////////////////////////// 3. FONCTION LOOP = Boucle sans fin = coeur du programme //////////////////
-// la fonction loop() s'exécute sans fin en boucle aussi longtemps que l'Arduino est sous tension
+} 
 
 void loop(){ // debut de la fonction loop()
-float Temperature = 0;
-float Humidite = 0;
-float TemperatureT = 0;
-float HumiditeT = 0;
 
-// boucle lecture temperature humidite
-for (int i=1; i <= BoucleLecture; i++){ 
-  float h = dht.readHumidity();
-  float t = dht.readTemperature();
-   if (isnan(t) || isnan(h)) {
-    Serial.println("Failed to read from DHT");
-  } else {
- Temperature = t + Temperature;
- Humidite = h + Humidite;
-  }
-delay(500); 
-  } // fin de la boucle for
+
+ digitalWrite(DHTPIN_POWER, HIGH); //alimente le capteur DHT22
+  delay(5000);
   
-  // moyenne des valeurs
-TemperatureT = Temperature / BoucleLecture + 1;
-HumiditeT = Humidite / BoucleLecture;
+  float Humidite = dht.readHumidity();
+  float Temperature = dht.readTemperature();
+   if (isnan(Temperature) || isnan(Humidite)) {
+    Serial.println("Failed to read from DHT");
+  }
+
+
   // Affichage Valeurs
     Serial.println("##############################"); 
     Serial.print("Humidity: "); 
-    Serial.print(HumiditeT);
+    Serial.print(Humidite);
     Serial.print(" %\t");
     Serial.print("Temperature: "); 
-    Serial.print(TemperatureT);
+    Serial.print(Temperature);
     Serial.println(" *C");
     Serial.println("##############################"); 
-    // Alerte temperature humidite led 
-
+ 
 
   
-if (sendData(TemperatureT, HumiditeT)) { /* Réussite */
+if (sendData(Temperature, Humidite)) { /* Réussite */
       /* Message de debug */
-    Serial.println(F("Envoi ok"));
+    Serial.println(F("Sending message ok"));
   /* Tentative d'envoi des rapports en attente */
    } else { /* Echec */
   /* Message de debug */
-    Serial.println(F("Echec envoi"));
+    Serial.println(F("Sending message failed"));
   }
 
-//while(1); // stop loop
+ digitalWrite(DHTPIN_POWER, LOW); //arrêt de l’alimentation du DTH22
+  for (int i=0; i < 8; i++) //mise en veille pendant 64 secondes
+    mywatchdogenable();
 
-} // fin de la fonction loop() - le programme recommence au début de la fonction loop sans fin
-// ********************************************************************************
-
+} 
 
 // ////////////////////////// FONCTIONS DE GESTION DES INTERRUPTIONS ////////////////////
-
-
-
 
 
 // ////////////////////////// AUTRES FONCTIONS DU PROGRAMME ////////////////////
 
 
-
-
-
-
 /** Fonction d'envoi au serveur Arduino 433MHz */
-boolean sendData(float TemperatureT, float HumiditeT) {
+boolean sendData(float Temperature, float Humidite) {
  
 char TemperatureTChar[10]; 
-dtostrf(TemperatureT, 4, 2, TemperatureTChar);
+dtostrf(Temperature, 4, 2, TemperatureTChar);
 
 char HumiditeTChar[10]; 
-dtostrf(HumiditeT, 4, 2, HumiditeTChar);
-
-//char result[100];   // array to hold the result.
-//strcpy(result,TemperatureTChar); // copy string one into the result.
-//strcat(result,HumiditeTChar); // append string two to the result.
+dtostrf(Humidite, 4, 2, HumiditeTChar);
 
 
 const char* t = "t=";
@@ -165,8 +152,6 @@ const char* h = "&h=";
 
 char result[40];
 sprintf(result, "%s%s%s%s", t, TemperatureTChar, h, HumiditeTChar);
-
-
 
 const char *msg = result;
 
